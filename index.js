@@ -28,6 +28,8 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 const agendamentosPendentes = new Map();
+// Mantém os contatos que já confirmaram ou ajustaram o nome
+const nomesConfirmados = new Set();
 
 app.post("/webhook", async (req, res) => {
   const msg = req.body.Body || req.body.text;
@@ -46,12 +48,29 @@ app.post("/webhook", async (req, res) => {
     const pendente = agendamentosPendentes.get(from);
     const twiml = new MessagingResponse();
 
+    if (pendente && pendente.confirmationStep === "confirmar_nome") {
+      if (/^(1|s|sim)$/i.test(msg.trim())) {
+        if (cliente.nome !== pendente.profileName) {
+          await atualizarNomeCliente(cliente.id, pendente.profileName);
+        }
+        nomesConfirmados.add(from);
+        resposta = `Obrigado, ${pendente.profileName}! Como posso ajudar?`;
+        agendamentosPendentes.delete(from);
+      } else {
+        agendamentosPendentes.set(from, { confirmationStep: "awaiting_name" });
+        resposta = "Certo, como você gostaria de ser chamado?";
+      }
+      twiml.message(resposta);
+      return res.type("text/xml").send(twiml.toString());
+    }
+
     if (pendente && pendente.confirmationStep === "awaiting_name") {
       const novoNome = msg.trim();
       if (novoNome.length < 2) {
         resposta = "Nome inválido. Por favor, informe seu nome completo.";
       } else {
         await atualizarNomeCliente(cliente.id, novoNome);
+        nomesConfirmados.add(from);
         resposta = `Obrigado, ${novoNome}! Como posso ajudar?`;
         agendamentosPendentes.delete(from);
       }
@@ -59,9 +78,15 @@ app.post("/webhook", async (req, res) => {
       return res.type("text/xml").send(twiml.toString());
     }
 
-    if (cliente.nome === "Cliente") {
-      agendamentosPendentes.set(from, { confirmationStep: "awaiting_name" });
-      twiml.message("Olá! Qual é o seu nome?");
+    if (!nomesConfirmados.has(from)) {
+      agendamentosPendentes.set(from, {
+        confirmationStep: "confirmar_nome",
+        profileName,
+      });
+      twiml.message(
+        `Olá! Seu nome no WhatsApp é *${profileName}*. Deseja usá-lo?\n` +
+          "Responda 1 para sim ou envie o nome que prefere."
+      );
       return res.type("text/xml").send(twiml.toString());
     }
 
@@ -75,17 +100,14 @@ app.post("/webhook", async (req, res) => {
             pendente.horarios[escolha]
           ) {
             const horario = pendente.horarios[escolha];
-            const resultado = await agendarServico(
-              cliente.id,
-              horario.id,
-              pendente.servicoIds
-            );
-            resposta = resultado.success
-              ? `✅ Agendamento confirmado para ${formatarData(
-                  horario.dia_horario
-                )}.`
-              : resultado.message;
-            agendamentosPendentes.delete(from);
+            pendente.horarioEscolhido = horario;
+            pendente.horarioId = horario.id;
+            pendente.confirmationStep = "confirmar_agendamento";
+            agendamentosPendentes.set(from, pendente);
+            resposta =
+              `Você selecionou ${pendente.servicos.join(", ")} em ${formatarData(
+                horario.dia_horario
+              )}.\nConfirma? (1-Sim / 2-Não)`;
           } else {
             resposta = "Opção inválida. Envie o número do horário desejado.";
           }
@@ -173,6 +195,26 @@ app.post("/webhook", async (req, res) => {
           } else {
             resposta = "Opção inválida. Envie o número do novo horário.";
           }
+          twiml.message(resposta);
+          return res.type("text/xml").send(twiml.toString());
+        }
+
+        case "confirmar_agendamento": {
+          if (/^(1|s|sim)$/i.test(msg.trim())) {
+            const resultado = await agendarServico(
+              cliente.id,
+              pendente.horarioId,
+              pendente.servicoIds
+            );
+            resposta = resultado.success
+              ? `✅ Agendamento confirmado para ${formatarData(
+                  pendente.horarioEscolhido.dia_horario
+                )}.`
+              : resultado.message;
+          } else {
+            resposta = "Agendamento cancelado. Como posso ajudar?";
+          }
+          agendamentosPendentes.delete(from);
           twiml.message(resposta);
           return res.type("text/xml").send(twiml.toString());
         }
