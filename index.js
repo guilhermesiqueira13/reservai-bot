@@ -14,7 +14,7 @@ const {
   cancelarAgendamento,
   reagendarAgendamento,
 } = require("./controllers/gerenciamentoController");
-const { formatarData } = require("./utils/formatters");
+const { formatarData, formatarHora } = require("./utils/formatters");
 const { normalizarServico, SERVICOS_VALIDOS } = require("./utils/intentHelper");
 const { obterServicoPorNome } = require("./services/servicoService");
 const { MessagingResponse } = require("twilio").twiml;
