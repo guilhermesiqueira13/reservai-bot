@@ -2,50 +2,44 @@
 const pool = require("../config/db");
 
 async function cancelarAgendamento(agendamentoId) {
-  const connection = await pool.getConnection(); // Usa pool em vez de db
+  const connection = await pool.getConnection();
   try {
-    // Inicia uma transação para garantir consistência
     await connection.beginTransaction();
 
-    // Verifica se o agendamento existe e está ativo
-    const [agendamento] = await connection.query(
-      'SELECT * FROM agendamentos WHERE id = ? AND status = "ativo"',
+    const [rows] = await connection.query(
+      'SELECT horario_id FROM agendamentos WHERE id = ? AND status = "ativo"',
       [agendamentoId]
     );
 
-    if (!agendamento || agendamento.length === 0) {
+    if (!rows.length) {
       await connection.rollback();
-      connection.release();
       return {
         success: false,
         message: "Agendamento não encontrado ou já cancelado.",
       };
     }
 
-    // Atualiza o status do agendamento para 'cancelado'
     await connection.query(
       'UPDATE agendamentos SET status = "cancelado" WHERE id = ?',
       [agendamentoId]
     );
 
-    // Libera o horário associado (torna disponível novamente)
     await connection.query(
       "UPDATE horarios_disponiveis SET disponivel = TRUE WHERE id = ?",
-      [agendamento[0].horario_id] // Ajuste para acessar o primeiro elemento
+      [rows[0].horario_id]
     );
 
-    // Confirma a transação
     await connection.commit();
-    await connection.release();
     return { success: true };
   } catch (error) {
-    await connection.rollback(); // Desfaz a transação em caso de erro
-    await connection.release();
+    await connection.rollback();
     console.error("Erro em cancelarAgendamento:", error);
     return {
       success: false,
       message: "Erro interno ao cancelar o agendamento.",
     };
+  } finally {
+    connection.release();
   }
 }
 
