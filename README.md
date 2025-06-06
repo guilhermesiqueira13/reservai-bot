@@ -15,6 +15,7 @@ Este projeto fornece um servidor de chatbot simples usando Express e Dialogflow 
    cp .env.example .env
    ```
    Ajuste os valores dentro do `.env` conforme o seu ambiente.
+   Defina a variável `TWILIO_AUTH_TOKEN` com o token da sua conta Twilio.
 
 3. Inicie o servidor de desenvolvimento:
    ```bash
