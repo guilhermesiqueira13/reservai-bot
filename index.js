@@ -76,7 +76,7 @@ app.post("/webhook", async (req, res) => {
             pendente.diasFuturos = [];
             agendamentosPendentes.set(from, pendente);
             resposta =
-              "Datas futuras disponíveis:\n\n" +
+              "Mais datas disponíveis:\n\n" +
               pendente.diasDisponiveis
                 .map((d, i) => `${i + 1}. ${formatarDia(d)}`)
                 .join("\n") +
@@ -188,7 +188,7 @@ app.post("/webhook", async (req, res) => {
             diasSemana.map((d, i) => `${i + 1}. ${formatarDia(d)}`).join("\n");
 
           if (diasFuturos.length) {
-            resposta += "\n0. Ver mais datas";
+            resposta += "\n0 - Mais datas";
           }
 
           agendamentosPendentes.set(from, {
@@ -208,7 +208,7 @@ app.post("/webhook", async (req, res) => {
             pendente.diasFuturos = [];
             agendamentosPendentes.set(from, pendente);
             resposta =
-              "Datas futuras disponíveis:\n\n" +
+              "Mais datas disponíveis:\n\n" +
               pendente.diasDisponiveis
                 .map((d, i) => `${i + 1}. ${formatarDia(d)}`)
                 .join("\n") +
@@ -385,7 +385,7 @@ app.post("/webhook", async (req, res) => {
           diasSemana.map((d, i) => `${i + 1}. ${formatarDia(d)}`).join("\n");
 
         if (diasFuturos.length) {
-          resposta += "\n0. Ver mais datas";
+          resposta += "\n0 - Mais datas";
         }
 
         agendamento.confirmationStep = "escolher_dia";
