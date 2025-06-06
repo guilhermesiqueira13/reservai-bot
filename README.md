@@ -1,28 +1,28 @@
 # ReservAI Bot
 
-This project provides a simple chatbot server using Express and Dialogflow to manage appointments.
+Este projeto fornece um servidor de chatbot simples usando Express e Dialogflow para gerenciar agendamentos.
 
-## Setup
+## Configuração
 
-1. Install dependencies:
+1. Instale as dependências:
    ```bash
    npm install
    ```
-   This installs required packages such as **dotenv** which is necessary for loading environment variables.
+   Isso instala os pacotes necessários, como **dotenv**, que é indispensável para carregar variáveis de ambiente.
 
-2. Create your `.env` file by copying the example provided:
+2. Crie o seu arquivo `.env` copiando o exemplo disponibilizado:
    ```bash
    cp .env.example .env
    ```
-   Adjust the values inside `.env` as needed for your environment.
+   Ajuste os valores dentro do `.env` conforme o seu ambiente.
 
-3. Start the development server:
+3. Inicie o servidor de desenvolvimento:
    ```bash
    npm start
    ```
-   or
+    ou
    ```bash
    node index.js
    ```
 
-The server will start on the port specified in your `.env` file (default is `3000`).
+O servidor iniciará na porta especificada no seu `.env` (o padrão é `3000`).

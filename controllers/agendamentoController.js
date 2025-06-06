@@ -29,7 +29,7 @@ async function buscarHorariosDisponiveis() {
 async function agendarServico(clienteId, horarioId, servicoIds) {
   const connection = await pool.getConnection();
   try {
-    // Validate inputs
+    // Validar entradas
     if (!clienteId || !horarioId) {
       return { success: false, message: "Cliente ou horário inválido." };
     }
