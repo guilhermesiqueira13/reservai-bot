@@ -7,7 +7,6 @@ async function buscarHorariosDisponiveis() {
        FROM horarios_disponiveis
        WHERE disponivel = TRUE
        AND dia_horario >= NOW()
-       AND DAYOFWEEK(dia_horario) BETWEEN 2 AND 7
        ORDER BY dia_horario`
     );
 
