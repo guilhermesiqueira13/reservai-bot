@@ -89,10 +89,26 @@ function encontrarHorarioProximo(horarioSolicitadoStr, horariosDisponiveis) {
   ).horario;
 }
 
+function separarDiasPorSemana(datas) {
+  const hoje = new Date();
+  const limite = new Date(hoje);
+  limite.setDate(hoje.getDate() + 6);
+  const diasSemana = [];
+  const diasFuturos = [];
+  for (const d of datas) {
+    const data = new Date(d);
+    if (isNaN(data.getTime())) continue;
+    if (data <= limite) diasSemana.push(d);
+    else diasFuturos.push(d);
+  }
+  return { diasSemana, diasFuturos };
+}
+
 module.exports = {
   formatarData,
   formatarHora,
   formatarDia,
   getDateFromWeekdayAndTime,
   encontrarHorarioProximo,
+  separarDiasPorSemana,
 };

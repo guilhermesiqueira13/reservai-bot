@@ -14,7 +14,12 @@ const {
   cancelarAgendamento,
   reagendarAgendamento,
 } = require("./controllers/gerenciamentoController");
-const { formatarData, formatarHora, formatarDia } = require("./utils/formatters");
+const {
+  formatarData,
+  formatarHora,
+  formatarDia,
+  separarDiasPorSemana,
+} = require("./utils/formatters");
 const { normalizarServico, SERVICOS_VALIDOS } = require("./utils/intentHelper");
 const { obterServicoPorNome } = require("./services/servicoService");
 const { MessagingResponse } = require("twilio").twiml;
@@ -65,12 +70,25 @@ app.post("/webhook", async (req, res) => {
       switch (pendente.confirmationStep) {
 
         case "escolher_dia": {
-          const indice = parseInt(msg.trim(), 10) - 1;
+          const textoDia = msg.trim().toLowerCase();
+          if ((textoDia === "0" || textoDia === "mais") && pendente.diasFuturos && pendente.diasFuturos.length) {
+            pendente.diasDisponiveis = pendente.diasFuturos;
+            pendente.diasFuturos = [];
+            agendamentosPendentes.set(from, pendente);
+            resposta =
+              "Datas futuras disponíveis:\n\n" +
+              pendente.diasDisponiveis
+                .map((d, i) => `${i + 1}. ${formatarDia(d)}`)
+                .join("\n") +
+              "\n\nResponda com o número do dia desejado.";
+            return sendReply(resposta);
+          }
+
+          const indice = parseInt(textoDia, 10) - 1;
           if (!isNaN(indice) && pendente.diasDisponiveis && pendente.diasDisponiveis[indice]) {
             const dia = pendente.diasDisponiveis[indice];
             const horariosDia = pendente.todosHorarios.filter(
-              (h) =>
-                new Date(h.dia_horario).toISOString().split("T")[0] === dia
+              (h) => new Date(h.dia_horario).toISOString().split("T")[0] === dia
             );
             pendente.horarios = horariosDia;
             pendente.diaEscolhido = dia;
@@ -163,26 +181,46 @@ app.post("/webhook", async (req, res) => {
             )
           ).filter((d) => new Date(d).getDay() !== 0);
 
+          const { diasSemana, diasFuturos } = separarDiasPorSemana(diasDisponiveis);
+
           resposta =
             "Escolha o novo dia:\n\n" +
-            diasDisponiveis.map((d, i) => `${i + 1}. ${formatarDia(d)}`).join("\n");
+            diasSemana.map((d, i) => `${i + 1}. ${formatarDia(d)}`).join("\n");
+
+          if (diasFuturos.length) {
+            resposta += "\n0. Ver mais datas";
+          }
 
           agendamentosPendentes.set(from, {
             agendamentoId,
             todosHorarios: horarios,
-            diasDisponiveis,
+            diasDisponiveis: diasSemana,
+            diasFuturos,
             confirmationStep: "selecionar_novo_dia",
           });
           return sendReply(resposta);
         }
 
         case "selecionar_novo_dia": {
-          const indice = parseInt(msg.trim(), 10) - 1;
+          const textoDia = msg.trim().toLowerCase();
+          if ((textoDia === "0" || textoDia === "mais") && pendente.diasFuturos && pendente.diasFuturos.length) {
+            pendente.diasDisponiveis = pendente.diasFuturos;
+            pendente.diasFuturos = [];
+            agendamentosPendentes.set(from, pendente);
+            resposta =
+              "Datas futuras disponíveis:\n\n" +
+              pendente.diasDisponiveis
+                .map((d, i) => `${i + 1}. ${formatarDia(d)}`)
+                .join("\n") +
+              "\n\nResponda com o número do dia desejado.";
+            return sendReply(resposta);
+          }
+
+          const indice = parseInt(textoDia, 10) - 1;
           if (!isNaN(indice) && pendente.diasDisponiveis && pendente.diasDisponiveis[indice]) {
             const dia = pendente.diasDisponiveis[indice];
             const horariosDia = pendente.todosHorarios.filter(
-              (h) =>
-                new Date(h.dia_horario).toISOString().split("T")[0] === dia
+              (h) => new Date(h.dia_horario).toISOString().split("T")[0] === dia
             );
             pendente.horarios = horariosDia;
             pendente.diaEscolhido = dia;
@@ -339,14 +377,21 @@ app.post("/webhook", async (req, res) => {
           )
         ).filter((d) => new Date(d).getDay() !== 0);
 
+        const { diasSemana, diasFuturos } = separarDiasPorSemana(diasDisponiveis);
+
         resposta =
           `Serviço escolhido: *${agendamento.servicos.join(", ")}*\n` +
           "Quando deseja agendar? Escolha a data:\n\n" +
-          diasDisponiveis.map((d, i) => `${i + 1}. ${formatarDia(d)}`).join("\n");
+          diasSemana.map((d, i) => `${i + 1}. ${formatarDia(d)}`).join("\n");
+
+        if (diasFuturos.length) {
+          resposta += "\n0. Ver mais datas";
+        }
 
         agendamento.confirmationStep = "escolher_dia";
         agendamento.todosHorarios = horarios;
-        agendamento.diasDisponiveis = diasDisponiveis;
+        agendamento.diasDisponiveis = diasSemana;
+        agendamento.diasFuturos = diasFuturos;
         agendamentosPendentes.set(from, agendamento);
         break;
       }
