@@ -17,6 +17,7 @@ async function buscarHorariosDisponiveis() {
 }
 
 async function agendarServico(clienteId, horarioId, servicoIds) {
+  const connection = await pool.getConnection();
   try {
     // Validate inputs
     if (!clienteId || !horarioId) {
@@ -26,21 +27,21 @@ async function agendarServico(clienteId, horarioId, servicoIds) {
       return { success: false, message: "Nenhum serviço selecionado." };
     }
 
-    await pool.query("START TRANSACTION");
+    await connection.beginTransaction();
 
     // Verificar se o horário está disponível
-    const [horario] = await pool.query(
+    const [horario] = await connection.query(
       "SELECT disponivel FROM horarios_disponiveis WHERE id = ?",
       [horarioId]
     );
     if (!horario.length || !horario[0].disponivel) {
-      await pool.query("ROLLBACK");
+      await connection.rollback();
       return { success: false, message: "Horário indisponível." };
     }
 
     // Criar o agendamento
-    const [result] = await pool.query(
-      `INSERT INTO agendamentos (cliente_id, horario_id, status, data_agendamento) 
+    const [result] = await connection.query(
+      `INSERT INTO agendamentos (cliente_id, horario_id, status, data_agendamento)
        VALUES (?, ?, 'ativo', NOW())`,
       [clienteId, horarioId]
     );
@@ -48,28 +49,30 @@ async function agendarServico(clienteId, horarioId, servicoIds) {
 
     // Associar serviços ao agendamento
     for (const servicoId of servicoIds) {
-      await pool.query(
-        `INSERT INTO agendamentos_servicos (agendamento_id, servico_id) 
+      await connection.query(
+        `INSERT INTO agendamentos_servicos (agendamento_id, servico_id)
          VALUES (?, ?)`,
         [agendamentoId, servicoId]
       );
     }
 
     // Marcar horário como indisponível
-    await pool.query(
+    await connection.query(
       "UPDATE horarios_disponiveis SET disponivel = FALSE WHERE id = ?",
       [horarioId]
     );
 
-    await pool.query("COMMIT");
+    await connection.commit();
     return { success: true };
   } catch (error) {
-    await pool.query("ROLLBACK");
+    await connection.rollback();
     console.error("Erro ao agendar serviço:", error);
     return {
       success: false,
       message: "Ops, algo deu errado ao agendar. Tente novamente.",
     };
+  } finally {
+    connection.release();
   }
 }
 
