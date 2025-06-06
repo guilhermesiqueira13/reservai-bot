@@ -8,7 +8,7 @@ const {
   buscarHorariosDisponiveis,
   agendarServico,
 } = require("./controllers/agendamentoController");
-const { encontrarOuCriarCliente } = require("./controllers/clienteController");
+const { encontrarOuCriarCliente, atualizarNomeCliente } = require("./controllers/clienteController");
 const {
   listarAgendamentosAtivos,
   cancelarAgendamento,
@@ -56,12 +56,9 @@ app.post("/webhook", async (req, res) => {
             const horario = pendente.horarios[escolha];
             pendente.horarioEscolhido = horario;
             pendente.horarioId = horario.id;
-            pendente.confirmationStep = "confirmar_agendamento";
+            pendente.confirmationStep = "confirmar_nome";
             agendamentosPendentes.set(from, pendente);
-            resposta =
-              `Confirma o agendamento de *${pendente.servicos.join(", ")}* para *${cliente.nome}* em ${formatarData(
-                horario.dia_horario
-              )}?\n(1-Sim / 2-Não)`;
+            resposta = `Posso usar o nome do seu perfil, "${cliente.nome}", para o agendamento?\nResponda com 1 para confirmar ou digite o nome desejado.`;
           } else {
             resposta = "Opção inválida. Envie o número do horário desejado.";
           }
@@ -149,6 +146,25 @@ app.post("/webhook", async (req, res) => {
           } else {
             resposta = "Opção inválida. Envie o número do novo horário.";
           }
+          twiml.message(resposta);
+          return res.type("text/xml").send(twiml.toString());
+        }
+
+        case "confirmar_nome": {
+          const texto = msg.trim();
+          if (/^(1|s|sim)$/i.test(texto)) {
+            pendente.nomeConfirmado = cliente.nome;
+          } else {
+            const nomeAtualizado = texto;
+            await atualizarNomeCliente(cliente.id, nomeAtualizado);
+            cliente.nome = nomeAtualizado;
+            pendente.nomeConfirmado = nomeAtualizado;
+          }
+          pendente.confirmationStep = "confirmar_agendamento";
+          agendamentosPendentes.set(from, pendente);
+          resposta = `Confirma o agendamento de *${pendente.servicos.join(", ")}* para *${pendente.nomeConfirmado}* em ${formatarData(
+            pendente.horarioEscolhido.dia_horario
+          )}?\n(1-Sim / 2-Não)`;
           twiml.message(resposta);
           return res.type("text/xml").send(twiml.toString());
         }
