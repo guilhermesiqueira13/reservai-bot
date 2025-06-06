@@ -24,6 +24,18 @@ function formatarHora(dia_horario) {
   });
 }
 
+function formatarDia(dia_horario) {
+  const data = new Date(dia_horario);
+  if (isNaN(data.getTime())) return "Data inválida";
+  const options = {
+    weekday: "long",
+    month: "2-digit",
+    day: "2-digit",
+  };
+  const formatted = new Intl.DateTimeFormat("pt-BR", options).format(data);
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+}
+
 function getDateFromWeekdayAndTime(diaSemanaStr, horaStr) {
   const diasDaSemana = [
     "domingo",
@@ -80,6 +92,7 @@ function encontrarHorarioProximo(horarioSolicitadoStr, horariosDisponiveis) {
 module.exports = {
   formatarData,
   formatarHora,
+  formatarDia,
   getDateFromWeekdayAndTime,
   encontrarHorarioProximo,
 };
