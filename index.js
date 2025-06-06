@@ -58,7 +58,10 @@ app.post("/webhook", async (req, res) => {
             pendente.horarioId = horario.id;
             pendente.confirmationStep = "confirmar_nome";
             agendamentosPendentes.set(from, pendente);
-            resposta = `Posso usar o nome do seu perfil, "${cliente.nome}", para o agendamento?\nResponda com 1 para confirmar ou digite o nome desejado.`;
+            resposta =
+              `Podemos usar o nome *${cliente.nome}* para o agendamento?` +
+              "\n1 - Sim" +
+              "\n2 - Informar outro nome";
           } else {
             resposta = "Opção inválida. Envie o número do horário desejado.";
           }
@@ -154,12 +157,33 @@ app.post("/webhook", async (req, res) => {
           const texto = msg.trim();
           if (/^(1|s|sim)$/i.test(texto)) {
             pendente.nomeConfirmado = cliente.nome;
+            pendente.confirmationStep = "confirmar_agendamento";
+          } else if (/^(2|n|nao|não)$/i.test(texto)) {
+            pendente.confirmationStep = "informar_nome";
+            resposta = "Qual nome devemos usar no agendamento?";
+            agendamentosPendentes.set(from, pendente);
+            twiml.message(resposta);
+            return res.type("text/xml").send(twiml.toString());
           } else {
             const nomeAtualizado = texto;
             await atualizarNomeCliente(cliente.id, nomeAtualizado);
             cliente.nome = nomeAtualizado;
             pendente.nomeConfirmado = nomeAtualizado;
+            pendente.confirmationStep = "confirmar_agendamento";
           }
+          agendamentosPendentes.set(from, pendente);
+          resposta = `Confirma o agendamento de *${pendente.servicos.join(", ")}* para *${pendente.nomeConfirmado || cliente.nome}* em ${formatarData(
+            pendente.horarioEscolhido.dia_horario
+          )}?\n(1-Sim / 2-Não)`;
+          twiml.message(resposta);
+          return res.type("text/xml").send(twiml.toString());
+        }
+
+        case "informar_nome": {
+          const nomeAtualizado = msg.trim();
+          await atualizarNomeCliente(cliente.id, nomeAtualizado);
+          cliente.nome = nomeAtualizado;
+          pendente.nomeConfirmado = nomeAtualizado;
           pendente.confirmationStep = "confirmar_agendamento";
           agendamentosPendentes.set(from, pendente);
           resposta = `Confirma o agendamento de *${pendente.servicos.join(", ")}* para *${pendente.nomeConfirmado}* em ${formatarData(
