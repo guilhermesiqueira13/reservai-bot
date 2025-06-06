@@ -42,11 +42,127 @@ app.post("/webhook", async (req, res) => {
   let resposta = "";
 
   try {
+    const cliente = await encontrarOuCriarCliente(from, profileName);
+    const pendente = agendamentosPendentes.get(from);
+    const twiml = new MessagingResponse();
+
+    if (pendente) {
+      switch (pendente.confirmationStep) {
+        case "awaiting_date_time": {
+          const escolha = parseInt(msg.trim(), 10) - 1;
+          if (
+            !isNaN(escolha) &&
+            pendente.horarios &&
+            pendente.horarios[escolha]
+          ) {
+            const horario = pendente.horarios[escolha];
+            const resultado = await agendarServico(
+              cliente.id,
+              horario.id,
+              pendente.servicoIds
+            );
+            resposta = resultado.success
+              ? `✅ Agendamento confirmado para ${formatarData(
+                  horario.dia_horario
+                )}.`
+              : resultado.message;
+            agendamentosPendentes.delete(from);
+          } else {
+            resposta = "Opção inválida. Envie o número do horário desejado.";
+          }
+          twiml.message(resposta);
+          return res.type("text/xml").send(twiml.toString());
+        }
+
+        case "selecionar_cancelamento": {
+          const indice = parseInt(msg.trim(), 10) - 1;
+          if (
+            isNaN(indice) ||
+            !pendente.agendamentosAtivos ||
+            !pendente.agendamentosAtivos[indice]
+          ) {
+            resposta =
+              "Opção inválida. Responda com o número do agendamento para cancelar.";
+          } else {
+            const agendamentoId = pendente.agendamentosAtivos[indice].id;
+            const resultado = await cancelarAgendamento(agendamentoId);
+            resposta = resultado.success
+              ? "Agendamento cancelado com sucesso!"
+              : resultado.message;
+            agendamentosPendentes.delete(from);
+          }
+          twiml.message(resposta);
+          return res.type("text/xml").send(twiml.toString());
+        }
+
+        case "selecionar_reagendamento": {
+          const indice = parseInt(msg.trim(), 10) - 1;
+          if (
+            isNaN(indice) ||
+            !pendente.agendamentosAtivos ||
+            !pendente.agendamentosAtivos[indice]
+          ) {
+            resposta =
+              "Opção inválida. Informe o número do agendamento que deseja reagendar.";
+            twiml.message(resposta);
+            return res.type("text/xml").send(twiml.toString());
+          }
+
+          const agendamentoId = pendente.agendamentosAtivos[indice].id;
+          const horarios = await buscarHorariosDisponiveis();
+
+          if (!horarios.length) {
+            resposta = "Nenhum horário disponível para reagendar.";
+            agendamentosPendentes.delete(from);
+            twiml.message(resposta);
+            return res.type("text/xml").send(twiml.toString());
+          }
+
+          resposta =
+            "Escolha o novo horário:\n\n" +
+            horarios
+              .map((h, i) => `${i + 1}. ${formatarData(h.dia_horario)}`)
+              .join("\n");
+
+          agendamentosPendentes.set(from, {
+            agendamentoId,
+            horarios,
+            confirmationStep: "selecionar_novo_horario",
+          });
+          twiml.message(resposta);
+          return res.type("text/xml").send(twiml.toString());
+        }
+
+        case "selecionar_novo_horario": {
+          const indice = parseInt(msg.trim(), 10) - 1;
+          if (
+            !isNaN(indice) &&
+            pendente.horarios &&
+            pendente.horarios[indice]
+          ) {
+            const horario = pendente.horarios[indice];
+            const resultado = await reagendarAgendamento(
+              pendente.agendamentoId,
+              horario.id
+            );
+            resposta = resultado.success
+              ? `✅ Agendamento reagendado para ${formatarData(
+                  horario.dia_horario
+                )}.`
+              : resultado.message;
+            agendamentosPendentes.delete(from);
+          } else {
+            resposta = "Opção inválida. Envie o número do novo horário.";
+          }
+          twiml.message(resposta);
+          return res.type("text/xml").send(twiml.toString());
+        }
+      }
+    }
+
     const [response] = await detectIntent(sessionId, msg);
     const intent = response.queryResult.intent?.displayName || "default";
     const parametros = response.queryResult.parameters?.fields || {};
-
-    const cliente = await encontrarOuCriarCliente(from, profileName);
 
     switch (intent) {
       case "welcome_intent":
@@ -97,6 +213,7 @@ Horários disponíveis:\n\n`;
           "\n\nEscolha um número ou digite um horário (ex: Sexta 10:00)";
 
         agendamento.confirmationStep = "awaiting_date_time";
+        agendamento.horarios = horarios;
         agendamentosPendentes.set(from, agendamento);
         break;
       }
@@ -123,11 +240,32 @@ Horários disponíveis:\n\n`;
         break;
       }
 
+      case "reagendar_agendamento": {
+        const agendamentos = await listarAgendamentosAtivos(cliente.id);
+        if (!agendamentos.length) {
+          resposta = "Você não possui agendamentos ativos.";
+        } else {
+          resposta = "Escolha o agendamento para reagendar:\n\n";
+          agendamentos.forEach((a, i) => {
+            resposta += `${i + 1}. ${a.servico} em ${formatarData(
+              a.dia_horario
+            )}\n`;
+          });
+          resposta +=
+            "\nResponda com o número do agendamento que deseja reagendar.";
+          agendamentosPendentes.set(from, {
+            clienteId: cliente.id,
+            agendamentosAtivos: agendamentos,
+            confirmationStep: "selecionar_reagendamento",
+          });
+        }
+        break;
+      }
+
       default:
         resposta = "Desculpe, não entendi sua mensagem. Poderia reformular?";
     }
 
-    const twiml = new MessagingResponse();
     twiml.message(resposta);
     res.type("text/xml").send(twiml.toString());
   } catch (err) {
