@@ -25,6 +25,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 const agendamentosPendentes = new Map();
+const conversas = new Map();
 
 app.post("/webhook", async (req, res) => {
   const msg = req.body.Body || req.body.text;
@@ -36,12 +37,27 @@ app.post("/webhook", async (req, res) => {
   }
 
   const sessionId = from;
+  const log = conversas.get(from) || [];
+  log.push({ from: 'cliente', text: msg });
+  conversas.set(from, log);
   let resposta = "";
 
   try {
     const cliente = await encontrarOuCriarCliente(from, profileName);
     const pendente = agendamentosPendentes.get(from);
     const twiml = new MessagingResponse();
+    const sendReply = (texto) => {
+      const conversa = conversas.get(from) || [];
+      conversa.push({ from: 'bot', text: texto });
+      conversas.set(from, conversa);
+      console.log(`Fluxo da conversa (${from}):`);
+      conversa.forEach((m) => {
+        const autor = m.from === 'cliente' ? 'Cliente' : 'Bot';
+        console.log(`${autor}: ${m.text}`);
+      });
+      twiml.message(texto);
+      return res.type("text/xml").send(twiml.toString());
+    };
 
 
     if (pendente) {
@@ -65,8 +81,7 @@ app.post("/webhook", async (req, res) => {
           } else {
             resposta = "Opção inválida. Envie o número do horário desejado.";
           }
-          twiml.message(resposta);
-          return res.type("text/xml").send(twiml.toString());
+          return sendReply(resposta);
         }
 
         case "selecionar_cancelamento": {
@@ -86,8 +101,7 @@ app.post("/webhook", async (req, res) => {
               : resultado.message;
             agendamentosPendentes.delete(from);
           }
-          twiml.message(resposta);
-          return res.type("text/xml").send(twiml.toString());
+          return sendReply(resposta);
         }
 
         case "selecionar_reagendamento": {
@@ -99,8 +113,7 @@ app.post("/webhook", async (req, res) => {
           ) {
             resposta =
               "Opção inválida. Informe o número do agendamento que deseja reagendar.";
-            twiml.message(resposta);
-            return res.type("text/xml").send(twiml.toString());
+            return sendReply(resposta);
           }
 
           const agendamentoId = pendente.agendamentosAtivos[indice].id;
@@ -109,8 +122,7 @@ app.post("/webhook", async (req, res) => {
           if (!horarios.length) {
             resposta = "Nenhum horário disponível para reagendar.";
             agendamentosPendentes.delete(from);
-            twiml.message(resposta);
-            return res.type("text/xml").send(twiml.toString());
+            return sendReply(resposta);
           }
 
           resposta =
@@ -124,8 +136,7 @@ app.post("/webhook", async (req, res) => {
             horarios,
             confirmationStep: "selecionar_novo_horario",
           });
-          twiml.message(resposta);
-          return res.type("text/xml").send(twiml.toString());
+          return sendReply(resposta);
         }
 
         case "selecionar_novo_horario": {
@@ -149,8 +160,7 @@ app.post("/webhook", async (req, res) => {
           } else {
             resposta = "Opção inválida. Envie o número do novo horário.";
           }
-          twiml.message(resposta);
-          return res.type("text/xml").send(twiml.toString());
+          return sendReply(resposta);
         }
 
         case "confirmar_nome": {
@@ -162,8 +172,7 @@ app.post("/webhook", async (req, res) => {
             pendente.confirmationStep = "informar_nome";
             resposta = "Qual nome devemos usar no agendamento?";
             agendamentosPendentes.set(from, pendente);
-            twiml.message(resposta);
-            return res.type("text/xml").send(twiml.toString());
+            return sendReply(resposta);
           } else {
             const nomeAtualizado = texto;
             await atualizarNomeCliente(cliente.id, nomeAtualizado);
@@ -175,9 +184,8 @@ app.post("/webhook", async (req, res) => {
           resposta = `Confirma o agendamento de *${pendente.servicos.join(", ")}* para *${pendente.nomeConfirmado || cliente.nome}* em ${formatarData(
             pendente.horarioEscolhido.dia_horario
           )}?\n(1-Sim / 2-Não)`;
-          twiml.message(resposta);
-          return res.type("text/xml").send(twiml.toString());
-        }
+          return sendReply(resposta);
+      }
 
         case "informar_nome": {
           const nomeAtualizado = msg.trim();
@@ -189,8 +197,7 @@ app.post("/webhook", async (req, res) => {
           resposta = `Confirma o agendamento de *${pendente.servicos.join(", ")}* para *${pendente.nomeConfirmado}* em ${formatarData(
             pendente.horarioEscolhido.dia_horario
           )}?\n(1-Sim / 2-Não)`;
-          twiml.message(resposta);
-          return res.type("text/xml").send(twiml.toString());
+          return sendReply(resposta);
         }
 
         case "confirmar_agendamento": {
@@ -209,8 +216,7 @@ app.post("/webhook", async (req, res) => {
             resposta = "Agendamento cancelado. Como posso ajudar?";
           }
           agendamentosPendentes.delete(from);
-          twiml.message(resposta);
-          return res.type("text/xml").send(twiml.toString());
+          return sendReply(resposta);
         }
       }
     }
@@ -321,8 +327,7 @@ Horários disponíveis:\n\n`;
         resposta = "Desculpe, não entendi sua mensagem. Poderia reformular?";
     }
 
-    twiml.message(resposta);
-    res.type("text/xml").send(twiml.toString());
+    return sendReply(resposta);
   } catch (err) {
     console.error("Erro no webhook:", err);
     res.status(500).send("Erro interno do servidor.");
