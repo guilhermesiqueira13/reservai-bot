@@ -52,7 +52,7 @@ async function listarAgendamentosAtivos(clienteId) {
        JOIN agendamentos_servicos asv ON a.id = asv.agendamento_id
        JOIN servicos s ON asv.servico_id = s.id
        JOIN horarios_disponiveis h ON a.horario_id = h.id
-       WHERE a.cliente_id = ? AND a.status = 'ativo'`,
+       WHERE a.cliente_id = ? AND a.status = 'ativo' AND h.dia_horario >= NOW()`,
       [clienteId]
     );
     return rows;
