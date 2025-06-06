@@ -3,13 +3,23 @@ const pool = require("../config/db");
 async function buscarHorariosDisponiveis() {
   try {
     const [rows] = await pool.query(
-      `SELECT id, dia_horario, dia_semana 
-       FROM horarios_disponiveis 
-       WHERE disponivel = TRUE 
+      `SELECT id, dia_horario, dia_semana
+       FROM horarios_disponiveis
+       WHERE disponivel = TRUE
        AND dia_horario >= NOW()
        ORDER BY dia_horario`
     );
-    return rows;
+
+    const vistos = new Set();
+    const unicos = [];
+    for (const r of rows) {
+      const chave = new Date(r.dia_horario).getTime();
+      if (!vistos.has(chave)) {
+        vistos.add(chave);
+        unicos.push(r);
+      }
+    }
+    return unicos;
   } catch (error) {
     console.error("Erro ao buscar horários disponíveis:", error);
     throw new Error("Erro ao buscar horários disponíveis.");

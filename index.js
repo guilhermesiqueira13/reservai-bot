@@ -63,7 +63,29 @@ app.post("/webhook", async (req, res) => {
 
     if (pendente) {
       switch (pendente.confirmationStep) {
-        case "awaiting_date_time": {
+
+        case "escolher_dia": {
+          const indice = parseInt(msg.trim(), 10) - 1;
+          if (!isNaN(indice) && pendente.diasDisponiveis && pendente.diasDisponiveis[indice]) {
+            const dia = pendente.diasDisponiveis[indice];
+            const horariosDia = pendente.todosHorarios.filter(
+              (h) => h.dia_semana === dia
+            );
+            pendente.horarios = horariosDia;
+            pendente.diaEscolhido = dia;
+            pendente.confirmationStep = "escolher_horario";
+            agendamentosPendentes.set(from, pendente);
+            resposta =
+              `Horários disponíveis para *${dia}*:\n\n` +
+              horariosDia
+                .map((h, i) => `${i + 1}. ${formatarHora(h.dia_horario)}`)
+                .join("\n");
+          } else {
+            resposta = "Opção inválida. Escolha um dos dias informados.";
+          }
+          return sendReply(resposta);
+        }
+        case "escolher_horario": {
           const escolha = parseInt(msg.trim(), 10) - 1;
           if (
             !isNaN(escolha) &&
@@ -269,7 +291,6 @@ app.post("/webhook", async (req, res) => {
           agendamento.servicos.push(servico.nome);
           agendamento.servicoIds.push(servico.id);
         }
-
         const horarios = await buscarHorariosDisponiveis();
 
         if (!horarios || horarios.length === 0) {
@@ -277,16 +298,18 @@ app.post("/webhook", async (req, res) => {
           break;
         }
 
-        resposta = `Serviço escolhido: *${agendamento.servicos.join(", ")}*
-Horários disponíveis:\n\n`;
-        resposta += horarios
-          .map((h, i) => `${i + 1}. ${formatarData(h.dia_horario)}`)
-          .join("\n");
-        resposta +=
-          "\n\nEscolha um número ou digite um horário (ex: Sexta 10:00)";
+        const diasDisponiveis = Array.from(
+          new Set(horarios.map((h) => h.dia_semana))
+        ).filter((d) => !/domingo/i.test(d));
 
-        agendamento.confirmationStep = "awaiting_date_time";
-        agendamento.horarios = horarios;
+        resposta =
+          `Serviço escolhido: *${agendamento.servicos.join(", ")}*\n` +
+          "Quando deseja agendar? Escolha o dia:\n\n" +
+          diasDisponiveis.map((d, i) => `${i + 1}. ${d}`).join("\n");
+
+        agendamento.confirmationStep = "escolher_dia";
+        agendamento.todosHorarios = horarios;
+        agendamento.diasDisponiveis = diasDisponiveis;
         agendamentosPendentes.set(from, agendamento);
         break;
       }

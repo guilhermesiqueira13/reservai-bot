@@ -14,6 +14,16 @@ function formatarData(dia_horario) {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
+function formatarHora(dia_horario) {
+  const data = new Date(dia_horario);
+  if (isNaN(data.getTime())) return "Hora inválida";
+  return data.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 function getDateFromWeekdayAndTime(diaSemanaStr, horaStr) {
   const diasDaSemana = [
     "domingo",
@@ -69,6 +79,7 @@ function encontrarHorarioProximo(horarioSolicitadoStr, horariosDisponiveis) {
 
 module.exports = {
   formatarData,
+  formatarHora,
   getDateFromWeekdayAndTime,
   encontrarHorarioProximo,
 };
