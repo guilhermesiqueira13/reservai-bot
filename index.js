@@ -19,6 +19,7 @@ const {
 } = require("./controllers/gerenciamentoController");
 const { formatarData } = require("./utils/formatters");
 const { normalizarServico, SERVICOS_VALIDOS } = require("./utils/intentHelper");
+const { MessagingResponse } = require("twilio").twiml;
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -126,7 +127,9 @@ Horários disponíveis:\n\n`;
         resposta = "Desculpe, não entendi sua mensagem. Poderia reformular?";
     }
 
-    res.json({ reply: resposta });
+    const twiml = new MessagingResponse();
+    twiml.message(resposta);
+    res.type("text/xml").send(twiml.toString());
   } catch (err) {
     console.error("Erro no webhook:", err);
     res.status(500).send("Erro interno do servidor.");
