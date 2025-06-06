@@ -31,7 +31,25 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 const agendamentosPendentes = new Map();
+// Conversas armazena o histórico de mensagens por usuário.
+// Cada entrada possui { log: [...], timeout } para remoção automática.
 const conversas = new Map();
+// Tempo máximo que uma conversa fica em memória sem nova interação (30 min).
+const CONVERSA_TTL_MS = 30 * 60 * 1000;
+// Limite opcional de histórico para evitar crescimento indefinido.
+const MAX_HISTORY = 50;
+
+function registrarMensagem(from, autor, texto) {
+  const entry = conversas.get(from) || { log: [], timeout: null };
+  entry.log.push({ from: autor, text: texto });
+  if (entry.log.length > MAX_HISTORY) {
+    entry.log.shift();
+  }
+  if (entry.timeout) clearTimeout(entry.timeout);
+  entry.timeout = setTimeout(() => conversas.delete(from), CONVERSA_TTL_MS);
+  conversas.set(from, entry);
+  return entry.log;
+}
 
 app.post("/webhook", async (req, res) => {
   const msg = req.body.Body || req.body.text;
@@ -43,9 +61,8 @@ app.post("/webhook", async (req, res) => {
   }
 
   const sessionId = from;
-  const log = conversas.get(from) || [];
-  log.push({ from: 'cliente', text: msg });
-  conversas.set(from, log);
+  registrarMensagem(from, 'cliente', msg);
+  const log = conversas.get(from).log;
   let resposta = "";
 
   try {
@@ -53,9 +70,7 @@ app.post("/webhook", async (req, res) => {
     const pendente = agendamentosPendentes.get(from);
     const twiml = new MessagingResponse();
     const sendReply = (texto) => {
-      const conversa = conversas.get(from) || [];
-      conversa.push({ from: 'bot', text: texto });
-      conversas.set(from, conversa);
+      const conversa = registrarMensagem(from, 'bot', texto);
       console.log(`Fluxo da conversa (${from}):`);
       conversa.forEach((m) => {
         const autor = m.from === 'cliente' ? 'Cliente' : 'Bot';
@@ -148,6 +163,7 @@ app.post("/webhook", async (req, res) => {
                 )} cancelado com sucesso!`
               : resultado.message;
             agendamentosPendentes.delete(from);
+            conversas.delete(from); // remove histórico ao concluir cancelamento
           }
           return sendReply(resposta);
         }
@@ -170,6 +186,7 @@ app.post("/webhook", async (req, res) => {
           if (!horarios.length) {
             resposta = "Nenhum horário disponível para reagendar.";
             agendamentosPendentes.delete(from);
+            conversas.delete(from); // remove conversa sem reagendamento
             return sendReply(resposta);
           }
 
@@ -315,6 +332,7 @@ app.post("/webhook", async (req, res) => {
             resposta = "Agendamento cancelado. Como posso ajudar?";
           }
           agendamentosPendentes.delete(from);
+          conversas.delete(from); // encerra conversa após confirmação
           return sendReply(resposta);
         }
       }
