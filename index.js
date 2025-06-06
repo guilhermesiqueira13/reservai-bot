@@ -14,7 +14,7 @@ const {
   cancelarAgendamento,
   reagendarAgendamento,
 } = require("./controllers/gerenciamentoController");
-const { formatarData, formatarHora } = require("./utils/formatters");
+const { formatarData, formatarHora, formatarDia } = require("./utils/formatters");
 const { normalizarServico, SERVICOS_VALIDOS } = require("./utils/intentHelper");
 const { obterServicoPorNome } = require("./services/servicoService");
 const { MessagingResponse } = require("twilio").twiml;
@@ -69,14 +69,15 @@ app.post("/webhook", async (req, res) => {
           if (!isNaN(indice) && pendente.diasDisponiveis && pendente.diasDisponiveis[indice]) {
             const dia = pendente.diasDisponiveis[indice];
             const horariosDia = pendente.todosHorarios.filter(
-              (h) => h.dia_semana === dia
+              (h) =>
+                new Date(h.dia_horario).toISOString().split("T")[0] === dia
             );
             pendente.horarios = horariosDia;
             pendente.diaEscolhido = dia;
             pendente.confirmationStep = "escolher_horario";
             agendamentosPendentes.set(from, pendente);
             resposta =
-              `Horários disponíveis para *${dia}*:\n\n` +
+              `Horários disponíveis para *${formatarDia(dia)}*:\n\n` +
               horariosDia
                 .map((h, i) => `${i + 1}. ${formatarHora(h.dia_horario)}`)
                 .join("\n") +
@@ -155,12 +156,16 @@ app.post("/webhook", async (req, res) => {
           }
 
           const diasDisponiveis = Array.from(
-            new Set(horarios.map((h) => h.dia_semana))
-          ).filter((d) => !/domingo/i.test(d));
+            new Set(
+              horarios.map((h) =>
+                new Date(h.dia_horario).toISOString().split("T")[0]
+              )
+            )
+          ).filter((d) => new Date(d).getDay() !== 0);
 
           resposta =
             "Escolha o novo dia:\n\n" +
-            diasDisponiveis.map((d, i) => `${i + 1}. ${d}`).join("\n");
+            diasDisponiveis.map((d, i) => `${i + 1}. ${formatarDia(d)}`).join("\n");
 
           agendamentosPendentes.set(from, {
             agendamentoId,
@@ -176,14 +181,15 @@ app.post("/webhook", async (req, res) => {
           if (!isNaN(indice) && pendente.diasDisponiveis && pendente.diasDisponiveis[indice]) {
             const dia = pendente.diasDisponiveis[indice];
             const horariosDia = pendente.todosHorarios.filter(
-              (h) => h.dia_semana === dia
+              (h) =>
+                new Date(h.dia_horario).toISOString().split("T")[0] === dia
             );
             pendente.horarios = horariosDia;
             pendente.diaEscolhido = dia;
             pendente.confirmationStep = "selecionar_novo_horario";
             agendamentosPendentes.set(from, pendente);
             resposta =
-              `Horários disponíveis para *${dia}*:\n\n` +
+              `Horários disponíveis para *${formatarDia(dia)}*:\n\n` +
               horariosDia
                 .map((h, i) => `${i + 1}. ${formatarHora(h.dia_horario)}`)
                 .join("\n") +
@@ -326,13 +332,17 @@ app.post("/webhook", async (req, res) => {
         }
 
         const diasDisponiveis = Array.from(
-          new Set(horarios.map((h) => h.dia_semana))
-        ).filter((d) => !/domingo/i.test(d));
+          new Set(
+            horarios.map((h) =>
+              new Date(h.dia_horario).toISOString().split("T")[0]
+            )
+          )
+        ).filter((d) => new Date(d).getDay() !== 0);
 
         resposta =
           `Serviço escolhido: *${agendamento.servicos.join(", ")}*\n` +
-          "Quando deseja agendar? Escolha um dia (segunda a sábado):\n\n" +
-          diasDisponiveis.map((d, i) => `${i + 1}. ${d}`).join("\n");
+          "Quando deseja agendar? Escolha a data:\n\n" +
+          diasDisponiveis.map((d, i) => `${i + 1}. ${formatarDia(d)}`).join("\n");
 
         agendamento.confirmationStep = "escolher_dia";
         agendamento.todosHorarios = horarios;
