@@ -79,7 +79,8 @@ app.post("/webhook", async (req, res) => {
               `Horários disponíveis para *${dia}*:\n\n` +
               horariosDia
                 .map((h, i) => `${i + 1}. ${formatarHora(h.dia_horario)}`)
-                .join("\n");
+                .join("\n") +
+              "\n\nResponda com o número do horário desejado.";
           } else {
             resposta = "Opção inválida. Escolha um dos dias informados.";
           }
@@ -115,7 +116,7 @@ app.post("/webhook", async (req, res) => {
             !pendente.agendamentosAtivos[indice]
           ) {
             resposta =
-              "Opção inválida. Responda com o número do agendamento para cancelar.";
+              "Opção inválida. Envie o número correspondente ao agendamento que deseja cancelar.";
           } else {
             const agendamento = pendente.agendamentosAtivos[indice];
             const resultado = await cancelarAgendamento(
@@ -153,17 +154,43 @@ app.post("/webhook", async (req, res) => {
             return sendReply(resposta);
           }
 
+          const diasDisponiveis = Array.from(
+            new Set(horarios.map((h) => h.dia_semana))
+          ).filter((d) => !/domingo/i.test(d));
+
           resposta =
-            "Escolha o novo horário:\n\n" +
-            horarios
-              .map((h, i) => `${i + 1}. ${formatarData(h.dia_horario)}`)
-              .join("\n");
+            "Escolha o novo dia:\n\n" +
+            diasDisponiveis.map((d, i) => `${i + 1}. ${d}`).join("\n");
 
           agendamentosPendentes.set(from, {
             agendamentoId,
-            horarios,
-            confirmationStep: "selecionar_novo_horario",
+            todosHorarios: horarios,
+            diasDisponiveis,
+            confirmationStep: "selecionar_novo_dia",
           });
+          return sendReply(resposta);
+        }
+
+        case "selecionar_novo_dia": {
+          const indice = parseInt(msg.trim(), 10) - 1;
+          if (!isNaN(indice) && pendente.diasDisponiveis && pendente.diasDisponiveis[indice]) {
+            const dia = pendente.diasDisponiveis[indice];
+            const horariosDia = pendente.todosHorarios.filter(
+              (h) => h.dia_semana === dia
+            );
+            pendente.horarios = horariosDia;
+            pendente.diaEscolhido = dia;
+            pendente.confirmationStep = "selecionar_novo_horario";
+            agendamentosPendentes.set(from, pendente);
+            resposta =
+              `Horários disponíveis para *${dia}*:\n\n` +
+              horariosDia
+                .map((h, i) => `${i + 1}. ${formatarHora(h.dia_horario)}`)
+                .join("\n") +
+              "\n\nResponda com o número do horário desejado.";
+          } else {
+            resposta = "Opção inválida. Escolha um dos dias informados.";
+          }
           return sendReply(resposta);
         }
 
@@ -304,7 +331,7 @@ app.post("/webhook", async (req, res) => {
 
         resposta =
           `Serviço escolhido: *${agendamento.servicos.join(", ")}*\n` +
-          "Quando deseja agendar? Escolha o dia:\n\n" +
+          "Quando deseja agendar? Escolha um dia (segunda a sábado):\n\n" +
           diasDisponiveis.map((d, i) => `${i + 1}. ${d}`).join("\n");
 
         agendamento.confirmationStep = "escolher_dia";
@@ -314,48 +341,46 @@ app.post("/webhook", async (req, res) => {
         break;
       }
 
-      case "cancelar_agendamento": {
-        const agendamentos = await listarAgendamentosAtivos(cliente.id);
-        if (!agendamentos.length) {
-          resposta = "Você não possui agendamentos ativos.";
-        } else {
-          resposta = "Você tem os seguintes agendamentos:\n\n";
-          agendamentos.forEach((a, i) => {
-            resposta += `${i + 1}. ${a.servico} em ${formatarData(
-              a.dia_horario
-            )}\n`;
-          });
-          resposta +=
-            "\nResponda com o número do agendamento que deseja cancelar.";
-          agendamentosPendentes.set(from, {
-            clienteId: cliente.id,
-            agendamentosAtivos: agendamentos,
-            confirmationStep: "selecionar_cancelamento",
-          });
-        }
-        break;
+        case "cancelar_agendamento": {
+          const agendamentos = await listarAgendamentosAtivos(cliente.id);
+          if (!agendamentos.length) {
+            resposta = "Você não possui agendamentos ativos.";
+          } else {
+            resposta = "Escolha o agendamento que deseja cancelar:\n\n";
+            agendamentos.forEach((a, i) => {
+              resposta += `${i + 1}. ${a.servico} em ${formatarData(
+                a.dia_horario
+              )}\n`;
+            });
+            resposta += "\nEnvie o número correspondente.";
+            agendamentosPendentes.set(from, {
+              clienteId: cliente.id,
+              agendamentosAtivos: agendamentos,
+              confirmationStep: "selecionar_cancelamento",
+            });
+          }
+          break;
       }
 
-      case "reagendar_agendamento": {
-        const agendamentos = await listarAgendamentosAtivos(cliente.id);
-        if (!agendamentos.length) {
-          resposta = "Você não possui agendamentos ativos.";
-        } else {
-          resposta = "Escolha o agendamento para reagendar:\n\n";
-          agendamentos.forEach((a, i) => {
-            resposta += `${i + 1}. ${a.servico} em ${formatarData(
-              a.dia_horario
-            )}\n`;
-          });
-          resposta +=
-            "\nResponda com o número do agendamento que deseja reagendar.";
-          agendamentosPendentes.set(from, {
-            clienteId: cliente.id,
-            agendamentosAtivos: agendamentos,
-            confirmationStep: "selecionar_reagendamento",
-          });
-        }
-        break;
+        case "reagendar_agendamento": {
+          const agendamentos = await listarAgendamentosAtivos(cliente.id);
+          if (!agendamentos.length) {
+            resposta = "Você não possui agendamentos ativos.";
+          } else {
+            resposta = "Escolha o agendamento para reagendar:\n\n";
+            agendamentos.forEach((a, i) => {
+              resposta += `${i + 1}. ${a.servico} em ${formatarData(
+                a.dia_horario
+              )}\n`;
+            });
+            resposta += "\nEnvie o número correspondente.";
+            agendamentosPendentes.set(from, {
+              clienteId: cliente.id,
+              agendamentosAtivos: agendamentos,
+              confirmationStep: "selecionar_reagendamento",
+            });
+          }
+          break;
       }
 
       default:
