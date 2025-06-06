@@ -1,14 +1,18 @@
 function normalizarServico(servicoNome) {
-  return servicoNome.toLowerCase().replace(/\s+/g, "");
+  return servicoNome
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[+&]/g, "e");
 }
 
+// Mapeia variações digitadas para o nome do serviço no banco
 const SERVICOS_VALIDOS = {
-  corte: { id: 1, nome: "Corte" },
-  cortarcabelo: { id: 1, nome: "Corte" },
-  barba: { id: 2, nome: "Barba" },
-  fazerbarba: { id: 2, nome: "Barba" },
-  sobrancelha: { id: 3, nome: "Sobrancelha" },
-  fazersobrancelha: { id: 3, nome: "Sobrancelha" },
+  corte: "Corte",
+  cortarcabelo: "Corte",
+  barba: "Barba",
+  fazerbarba: "Barba",
+  cortebarba: "Corte + Barba",
+  corteebarba: "Corte + Barba",
 };
 
 module.exports = {
