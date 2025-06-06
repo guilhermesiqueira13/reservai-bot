@@ -16,6 +16,7 @@ const {
 } = require("./controllers/gerenciamentoController");
 const { formatarData } = require("./utils/formatters");
 const { normalizarServico, SERVICOS_VALIDOS } = require("./utils/intentHelper");
+const { obterServicoPorNome } = require("./services/servicoService");
 const { MessagingResponse } = require("twilio").twiml;
 
 const app = express();
@@ -233,22 +234,28 @@ app.post("/webhook", async (req, res) => {
     switch (intent) {
       case "welcome_intent":
         resposta =
-          "Olá! Bem-vindo à barbearia. Qual serviço deseja agendar? (Corte, Barba ou Sobrancelha)";
+          "Olá! Bem-vindo à barbearia. Qual serviço deseja agendar? (Corte, Barba ou Corte + Barba)";
         break;
 
       case "escolha_servico": {
         const servicoNome = parametros?.servico?.stringValue;
         if (!servicoNome) {
           resposta =
-            "Por favor, informe um serviço válido: Corte, Barba ou Sobrancelha.";
+            "Por favor, informe um serviço válido: Corte, Barba ou Corte + Barba.";
           break;
         }
 
         const servicoNormalizado = normalizarServico(servicoNome);
-        const servicoInfo = SERVICOS_VALIDOS[servicoNormalizado];
+        const servicoBase = SERVICOS_VALIDOS[servicoNormalizado];
 
-        if (!servicoInfo) {
+        if (!servicoBase) {
           resposta = `Serviço '${servicoNome}' não encontrado.`;
+          break;
+        }
+
+        const servico = await obterServicoPorNome(servicoBase);
+        if (!servico) {
+          resposta = `Serviço '${servicoBase}' não disponível no momento.`;
           break;
         }
 
@@ -258,9 +265,9 @@ app.post("/webhook", async (req, res) => {
           confirmationStep: "initial",
         };
 
-        if (!agendamento.servicos.includes(servicoInfo.nome)) {
-          agendamento.servicos.push(servicoInfo.nome);
-          agendamento.servicoIds.push(servicoInfo.id);
+        if (!agendamento.servicos.includes(servico.nome)) {
+          agendamento.servicos.push(servico.nome);
+          agendamento.servicoIds.push(servico.id);
         }
 
         const horarios = await buscarHorariosDisponiveis();
