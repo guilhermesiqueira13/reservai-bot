@@ -94,10 +94,15 @@ app.post("/webhook", async (req, res) => {
             resposta =
               "Opção inválida. Responda com o número do agendamento para cancelar.";
           } else {
-            const agendamentoId = pendente.agendamentosAtivos[indice].id;
-            const resultado = await cancelarAgendamento(agendamentoId);
+            const agendamento = pendente.agendamentosAtivos[indice];
+            const resultado = await cancelarAgendamento(
+              agendamento.id,
+              pendente.clienteId
+            );
             resposta = resultado.success
-              ? "Agendamento cancelado com sucesso!"
+              ? `Agendamento de ${agendamento.servico} em ${formatarData(
+                  agendamento.dia_horario
+                )} cancelado com sucesso!`
               : resultado.message;
             agendamentosPendentes.delete(from);
           }

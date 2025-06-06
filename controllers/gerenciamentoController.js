@@ -1,14 +1,14 @@
 // gerenciamentoController.js
 const pool = require("../config/db");
 
-async function cancelarAgendamento(agendamentoId) {
+async function cancelarAgendamento(agendamentoId, clienteId) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
 
     const [rows] = await connection.query(
-      'SELECT horario_id FROM agendamentos WHERE id = ? AND status = "ativo"',
-      [agendamentoId]
+      'SELECT horario_id FROM agendamentos WHERE id = ? AND cliente_id = ? AND status = "ativo"',
+      [agendamentoId, clienteId]
     );
 
     if (!rows.length) {
@@ -20,8 +20,8 @@ async function cancelarAgendamento(agendamentoId) {
     }
 
     await connection.query(
-      'UPDATE agendamentos SET status = "cancelado" WHERE id = ?',
-      [agendamentoId]
+      'UPDATE agendamentos SET status = "cancelado" WHERE id = ? AND cliente_id = ?',
+      [agendamentoId, clienteId]
     );
 
     await connection.query(
