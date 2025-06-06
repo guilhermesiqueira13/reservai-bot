@@ -23,6 +23,7 @@ const {
 const { normalizarServico, SERVICOS_VALIDOS } = require("./utils/intentHelper");
 const { obterServicoPorNome } = require("./services/servicoService");
 const { MessagingResponse } = require("twilio").twiml;
+const twilio = require("twilio");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -30,10 +31,25 @@ const port = process.env.PORT || 3000;
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
+const validateTwilioSignature = (req, res, next) => {
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  if (!token) {
+    console.warn('TWILIO_AUTH_TOKEN not set; skipping validation.');
+    return next();
+  }
+  const signature = req.headers['x-twilio-signature'];
+  const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  const params = req.method === 'POST' ? req.body : req.query;
+  if (!twilio.validateRequest(token, signature, url, params)) {
+    return res.status(403).send('Invalid Twilio signature.');
+  }
+  next();
+};
+
 const agendamentosPendentes = new Map();
 const conversas = new Map();
 
-app.post("/webhook", async (req, res) => {
+app.post("/webhook", validateTwilioSignature, async (req, res) => {
   const msg = req.body.Body || req.body.text;
   const from = req.body.From || req.body.sessionId;
   const profileName = req.body.ProfileName || "Cliente";
