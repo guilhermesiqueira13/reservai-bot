@@ -91,13 +91,15 @@ function encontrarHorarioProximo(horarioSolicitadoStr, horariosDisponiveis) {
 
 function separarDiasPorSemana(datas) {
   const hoje = new Date();
-  const limite = new Date(hoje);
-  limite.setDate(hoje.getDate() + 6);
+  const inicioHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const limite = new Date(inicioHoje);
+  limite.setDate(inicioHoje.getDate() + 6);
   const diasSemana = [];
   const diasFuturos = [];
   for (const d of datas) {
     const data = new Date(d);
     if (isNaN(data.getTime())) continue;
+    if (data < inicioHoje) continue;
     if (data <= limite) diasSemana.push(d);
     else diasFuturos.push(d);
   }
