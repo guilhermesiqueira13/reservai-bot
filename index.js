@@ -46,6 +46,25 @@ app.post("/webhook", async (req, res) => {
     const pendente = agendamentosPendentes.get(from);
     const twiml = new MessagingResponse();
 
+    if (pendente && pendente.confirmationStep === "awaiting_name") {
+      const novoNome = msg.trim();
+      if (novoNome.length < 2) {
+        resposta = "Nome inválido. Por favor, informe seu nome completo.";
+      } else {
+        await atualizarNomeCliente(cliente.id, novoNome);
+        resposta = `Obrigado, ${novoNome}! Como posso ajudar?`;
+        agendamentosPendentes.delete(from);
+      }
+      twiml.message(resposta);
+      return res.type("text/xml").send(twiml.toString());
+    }
+
+    if (cliente.nome === "Cliente") {
+      agendamentosPendentes.set(from, { confirmationStep: "awaiting_name" });
+      twiml.message("Olá! Qual é o seu nome?");
+      return res.type("text/xml").send(twiml.toString());
+    }
+
     if (pendente) {
       switch (pendente.confirmationStep) {
         case "awaiting_date_time": {

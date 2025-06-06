@@ -14,7 +14,8 @@ async function cancelarAgendamento(agendamentoId) {
     );
 
     if (!agendamento || agendamento.length === 0) {
-      await connection.release();
+      await connection.rollback();
+      connection.release();
       return {
         success: false,
         message: "Agendamento não encontrado ou já cancelado.",
@@ -68,54 +69,57 @@ async function listarAgendamentosAtivos(clienteId) {
 }
 
 async function reagendarAgendamento(agendamentoId, novoHorarioId) {
+  const connection = await pool.getConnection();
   try {
-    await pool.query("START TRANSACTION");
+    await connection.beginTransaction();
 
-    const [agendamento] = await pool.query(
+    const [agendamento] = await connection.query(
       'SELECT horario_id FROM agendamentos WHERE id = ? AND status = "ativo"',
       [agendamentoId]
     );
     if (!agendamento.length) {
-      await pool.query("ROLLBACK");
+      await connection.rollback();
       return {
         success: false,
         message: "Agendamento não encontrado ou já cancelado.",
       };
     }
 
-    const [novoHorario] = await pool.query(
+    const [novoHorario] = await connection.query(
       "SELECT disponivel FROM horarios_disponiveis WHERE id = ?",
       [novoHorarioId]
     );
     if (!novoHorario.length || !novoHorario[0].disponivel) {
-      await pool.query("ROLLBACK");
+      await connection.rollback();
       return { success: false, message: "Novo horário indisponível." };
     }
 
-    await pool.query("UPDATE agendamentos SET horario_id = ? WHERE id = ?", [
+    await connection.query("UPDATE agendamentos SET horario_id = ? WHERE id = ?", [
       novoHorarioId,
       agendamentoId,
     ]);
 
-    await pool.query(
+    await connection.query(
       "UPDATE horarios_disponiveis SET disponivel = TRUE WHERE id = ?",
       [agendamento[0].horario_id]
     );
 
-    await pool.query(
+    await connection.query(
       "UPDATE horarios_disponiveis SET disponivel = FALSE WHERE id = ?",
       [novoHorarioId]
     );
 
-    await pool.query("COMMIT");
+    await connection.commit();
     return { success: true };
   } catch (error) {
-    await pool.query("ROLLBACK");
+    await connection.rollback();
     console.error("Erro ao reagendar:", error);
     return {
       success: false,
       message: "Ops, algo deu errado ao reagendar. Tente novamente.",
     };
+  } finally {
+    connection.release();
   }
 }
 
