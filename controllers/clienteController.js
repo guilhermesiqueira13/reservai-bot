@@ -20,7 +20,7 @@ async function encontrarOuCriarCliente(telefone, profileName = "Cliente") {
       if (
         profileName &&
         profileName !== "Cliente" &&
-        cliente.nome === profileName
+        cliente.nome !== profileName
       ) {
         await client.query("UPDATE clientes SET nome = ? WHERE id = ?", [
           profileName,
@@ -55,7 +55,6 @@ async function encontrarOuCriarCliente(telefone, profileName = "Cliente") {
 // Atualiza o nome de um cliente existente.
 async function atualizarNomeCliente(clienteId, novoNome) {
   let client;
-  console.log("aqui");
 
   try {
     client = await pool.getConnection();

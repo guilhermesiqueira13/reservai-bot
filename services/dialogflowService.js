@@ -1,10 +1,10 @@
 const dialogflow = require("@google-cloud/dialogflow");
 
-const sessionClient = new dialogflow.SessionsClient({
-  keyFilename: "./reservai_twilio.json",
-});
+const keyFilename = process.env.DIALOGFLOW_KEY_FILE || "./reservai_twilio.json";
+const projectId =
+  process.env.DIALOGFLOW_PROJECT_ID || "reservai-twilio-qrps";
 
-const projectId = "reservai-twilio-qrps";
+const sessionClient = new dialogflow.SessionsClient({ keyFilename });
 
 function detectIntent(sessionId, text) {
   const sessionPath = sessionClient.projectAgentSessionPath(
